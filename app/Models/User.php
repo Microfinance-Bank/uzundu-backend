@@ -47,6 +47,11 @@ class User extends Authenticatable
         return $this->hasOne('App\Models\BankAccount');
     }
 
+    public function profile(): HasOne
+    {
+        return $this->hasOne('App\Models\NewCustomer');
+    }
+
 
     public function customerTransactions(): HasMany
     {

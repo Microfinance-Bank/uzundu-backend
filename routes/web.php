@@ -20,5 +20,6 @@ Route::get('/', function () {
 Route::get('/generate-docs', function () {
     $output = [];
     \Artisan::call('l5-swagger:generate', $output);
+    \Artisan::call('artisan:migrate', $output);
     dd($output);
 });

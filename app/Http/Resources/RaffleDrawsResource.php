@@ -19,9 +19,10 @@ class RaffleDrawsResource extends JsonResource
             'id' => $this->id,
             'category' => $this->categories->name,
             'winningTags' => $this->winningTags->name,
-            'start_date' => Carbon::parse($this->start_day . '-' . $this->month . '-' . $this->year)->format("d M, Y"),
+            'start_date' => Carbon::parse($this->start_date)->format("d M, Y"),
+            'end_date' => Carbon::parse($this->end_date)->format("d M, Y"),
             'current_winners' => $this->count_winners,
-            'status' => $this->is_open,
+            'status' => $this->is_close,
             'win_nos' => $this->win_nos
         ];
     }

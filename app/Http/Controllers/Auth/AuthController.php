@@ -68,8 +68,10 @@ class AuthController extends Controller
      *         required=true,
      *         @OA\Schema(type="string")
      *     ),
-     *     @OA\Response(response="200", description="Registration successful"),
-     *     @OA\Response(response="401", description="Invalid credentials")
+     *     @OA\Response(response="200", description="Registration successful", @OA\JsonContent()),
+     *     @OA\Response(response="401", description="Invalid credentials", @OA\JsonContent()),
+     *     @OA\Response(response="422", description="validation Error", @OA\JsonContent())
+     *
      * )
      */
     public function registerUser(UserRequest $userRequest, Utils $utils)
@@ -91,8 +93,9 @@ class AuthController extends Controller
         $customer->phone = $userRequest->get("phone");
         $customer->user_id = $user->id;
         $customer->save();
+
         $mailData = [
-            'title' => 'Reset your password',
+            'title' => 'Verification Code',
             'code' => $verify_code
         ];
         Mail::mailer("no-reply")->to($userRequest->get("email"))->send(new VerifyCodeMail($mailData));
@@ -231,8 +234,10 @@ class AuthController extends Controller
      *         required=true,
      *         @OA\Schema(type="string")
      *     ),
-     *     @OA\Response(response="200", description="Verification successful"),
-     *     @OA\Response(response="401", description="Invalid credentials")
+     *     @OA\Response(response="200", description="Verification successful", @OA\JsonContent()),
+     *     @OA\Response(response="401", description="Invalid credentials", @OA\JsonContent()),
+     *     @OA\Response(response="422", description="Validation Error", @OA\JsonContent())
+     *
      * )
      */
     public function verifyOTP(Request $request, Utils $utils): JsonResponse
@@ -267,15 +272,16 @@ class AuthController extends Controller
      *         required=true,
      *         @OA\Schema(type="string")
      *     ),
-     *     @OA\Response(response="200", description="Login successful"),
-     *     @OA\Response(response="401", description="Invalid credentials")
+     *     @OA\Response(response="200", description="Login successful", @OA\JsonContent()),
+     *     @OA\Response(response="401", description="Unauthorized", @OA\JsonContent()),
+     *     @OA\Response(response="422", description="Validation Error", @OA\JsonContent())
      * )
      */
     public function login(LoginRequest $loginRequest, Utils $utils)
     {
 
         if (!auth()->attempt(request()->only(['username', 'password']))) {
-            return $utils->message( "error", "Invalid Username/Password", ResponseAlias::HTTP_UNAUTHORIZED);
+            return $utils->message( "error", "Invalid Username/Password", 401);
         }
 
         $user = NewCustomer::where("user_id", Auth::user()->id)->firstOrFail();
@@ -284,8 +290,8 @@ class AuthController extends Controller
         $success['first_name'] =   $user->first_name;
         $success['last_name'] =  $user->last_name;
         $success['username'] =  $authUser->username;
+        $success['id'] =  $authUser->id;
         return $utils->message("success", $success, 200);
-
     }
     public function logout(): JsonResponse
     {
