@@ -1,6 +1,7 @@
-## About Raffle Draw Naija
+## Uzundu Internet Banking Application
 
-Raffle Draw Naija is an application that will revolutionalize how raffle draw is done.
+
+Uzundu Internet Banking Application
 
 <br />
 
