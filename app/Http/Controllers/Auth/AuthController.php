@@ -2,12 +2,18 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Execs\Execs;
+use App\Http\Resources\Customer;
 use App\Mail\PasswordCodeEmail;
 use App\Mail\VerifyCodeMail;
+use App\Models\Account;
 use App\Models\NewCustomer;
 use App\Models\User;
+use App\Utils\CurlGet;
+use App\Utils\CurlPost;
 use App\Utils\Utils;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
@@ -21,6 +27,23 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class AuthController extends Controller
 {
+    public function createPin(Request $request, $username, Utils $utils)
+    {
+       if(!User::where("username", $username)->exists())
+           return $utils->message("success", "User Not Found", 404);
+
+        try {
+            return  DB::transaction(function () use ($request, $username, $utils) {
+                $user = User::where("username", "=", $username)->firstOrFail();
+                $user->pin = Hash::make($request->get("pin"));
+                $user->save();
+                return $utils->message("success", $user, 200);
+
+            });
+        } catch (\Throwable $e) {
+            return $utils->message("error",$e->getMessage() , 404);
+        }
+    }
 
     /**
      * @OA\Post(
@@ -74,34 +97,39 @@ class AuthController extends Controller
      *
      * )
      */
-    public function registerUser(UserRequest $userRequest, Utils $utils)
+    public function registerUser(UserRequest $userRequest, Utils $utils, Execs $execs)
     {
-        $identity = Str::random(50);
-        $verify_code = random_int(100000, 999999);
-        $user = new User;
-        $user->username = $userRequest->get("username");
-        $user->password = Hash::make($userRequest->get("password"));
-        $user->identity = $identity;
-        $user->verified = 0;
-        $user->email = $userRequest->get("email");
-        $user->verify_code = $verify_code;
-        $user->save();
+        $phone = $userRequest->get("phone");
+        try {
+            // execute the request
+            $data = "phoneNumber=" . $userRequest->get("phone") . "&authToken=" . env("BANK_ONE_AUTH_TOKEN") ;
+            $client = new \GuzzleHttp\Client();
+            $response = $client->request('GET', 'https://staging.mybankone.com/BankOneWebAPI/api/Customer/GetByCustomerPhoneNumber/2?' . $data);
+            $user = json_decode($response->getBody()->getContents());
+            if (isset($user->Message) && !empty($user))
+                return $utils->message("success", $user->Message, 404);
+            try {
 
-        $customer = new NewCustomer;
-        $customer->first_name =  $userRequest->get("first_name");
-        $customer->last_name  = $userRequest->get("last_name");
-        $customer->phone = $userRequest->get("phone");
-        $customer->user_id = $user->id;
-        $customer->save();
+              return  DB::transaction(function () use ($userRequest, $user, $execs, $utils) {
 
-        $mailData = [
-            'title' => 'Verification Code',
-            'code' => $verify_code
-        ];
-        Mail::mailer("no-reply")->to($userRequest->get("email"))->send(new VerifyCodeMail($mailData));
-        return $utils->message("success", $user, 200);
+                    $user_id = $execs->createUser("", $user, $userRequest);
+                    $user =  $execs->createAccount($user, $user_id, $userRequest);
+                    $mailData = [
+                        'title' => 'Verification Code',
+                    ];
+//                Mail::mailer("no-reply")->to($userRequest->get("email"))->send(new VerifyCodeMail($mailData));
+                  $data = [
+                      "username" => $userRequest->get("username")
+                  ];
+                    return $utils->message("success", $data, 200);
+                });
+            } catch (\Throwable $e) {
+                return $utils->message("error",$e->getMessage() , 404);
+            }
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            return $utils->message("error", "Network Error. Please Try Again" , 404);
+        }
     }
-
 
     /**
      * @OA\Post(
@@ -277,25 +305,25 @@ class AuthController extends Controller
      *     @OA\Response(response="422", description="Validation Error", @OA\JsonContent())
      * )
      */
-    public function login(LoginRequest $loginRequest, Utils $utils)
+    public function login(LoginRequest $loginRequest, Utils $utils, Execs $execs)
     {
-
         if (!auth()->attempt(request()->only(['username', 'password']))) {
             return $utils->message( "error", "Invalid Username/Password", 401);
         }
 
-        $user = NewCustomer::where("user_id", Auth::user()->id)->firstOrFail();
+        $user = Account::where("user_id", Auth::user()->id)->firstOrFail();
         $authUser = Auth::user();
         $success['token'] =  $authUser->createToken('MyAuthApp')->plainTextToken;
-        $success['first_name'] =   $user->first_name;
-        $success['last_name'] =  $user->last_name;
+        $success['account_name'] =   $user->account_name;
+        $success['account_number'] =  $user->last_name;
+        $success['account_type'] =  $user->last_name;
         $success['username'] =  $authUser->username;
         $success['id'] =  $authUser->id;
         return $utils->message("success", $success, 200);
     }
-    public function logout(): JsonResponse
+    public function logout(Request $request): JsonResponse
     {
-        auth()->logout();
+        $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'User successfully signed out']);
     }
 }

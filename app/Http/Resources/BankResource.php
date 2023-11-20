@@ -4,9 +4,8 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Carbon;
 
-class WinningTagsResource extends JsonResource
+class BankResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -15,10 +14,9 @@ class WinningTagsResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-
         return [
-            'value' => $this->id,
-            'label' => $this->name
+          "value" => $this->code,
+          "label" => $this->name
         ];
     }
 }

@@ -24,10 +24,17 @@ use App\Http\Controller\CustomerStakeController;
 Route::get('/categories/list', ['App\Http\Controllers\CategoriesController', 'index']);
 
 //Route::get('retrieve', [CustomerStakeController::class, 'index']);
-
-Route::group(['prefix' => 'v1/admin'], function () {
+Route::group(['prefix' => 'v1/'], function () {
     Route::post('/login', ['App\Http\Controllers\Auth\AuthController', 'login']);
-    Route::get('/register-user', ['App\Http\Controllers\Auth\AuthController', 'registerUser']);
-    Route::get('/test', ['App\Http\Controllers\Auth\AuthController', 'test']);
+    Route::post('/register', ['App\Http\Controllers\Auth\AuthController', 'registerUser']);
+    Route::get('/get-account/{phone}', ['App\Http\Controllers\GeneralController', 'getAccountDetails']);
+    Route::get('/get-banks', ['App\Http\Controllers\GeneralController', 'getBanks']);
+    Route::post('/verify-account', ['App\Http\Controllers\GeneralController', 'verifyAccount']);
 
+    Route::patch('/create-pin/{username}', ['App\Http\Controllers\Auth\AuthController', 'createPin']);
+
+    Route::group(['middleware'=>['auth:sanctum']],function() {
+        Route::get('/logout', ['App\Http\Controllers\Auth\AuthController', 'logout']);
+        Route::post('/single-transfer', ['App\Http\Controllers\TransferController', 'singleTransfer']);
+    });
 });

@@ -23,9 +23,8 @@ class UserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            "username" => "required|unique:users",
-            "phone" => "required|unique:customers",
-            "email" => "required|email",
+            "username" => "required|string|unique:users",
+            "phone" => "required|string|unique:users",
             "password" => [
                 'required',
                 'min:8',
@@ -34,8 +33,6 @@ class UserRequest extends FormRequest
                 'regex:/[0-9]/',      // must contain at least one digit
                 'regex:/[@$!%*#?&.]/'
             ],
-            "first_name" => "required",
-            "last_name" => "required"
         ];
     }
 
