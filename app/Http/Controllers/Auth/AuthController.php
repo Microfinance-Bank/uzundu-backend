@@ -23,12 +23,27 @@ use App\Http\Requests\UserRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Testing\Fluent\Concerns\Has;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class AuthController extends Controller
 {
+    public function verifyPin(Request $request, Utils $utils)
+    {
+        $request->validate([
+            "pin" => "required|string|min:6|max:6"
+        ]);
+        if(!Hash::check($request->get("pin"), auth('sanctum')->user()->pin))
+            return $utils->message("error", "Invalid Pin", 400);
+
+        return $utils->message("error", "Pin Verified", 200);
+
+    }
     public function createPin(Request $request, $username, Utils $utils)
     {
+        $request->validate([
+            "pin" => "required|string|min:6|max:6",
+        ]);
        if(!User::where("username", $username)->exists())
            return $utils->message("success", "User Not Found", 404);
 

@@ -32,9 +32,10 @@ Route::group(['prefix' => 'v1/'], function () {
     Route::post('/verify-account', ['App\Http\Controllers\GeneralController', 'verifyAccount']);
 
     Route::patch('/create-pin/{username}', ['App\Http\Controllers\Auth\AuthController', 'createPin']);
+    Route::get('/logout', ['App\Http\Controllers\Auth\AuthController', 'logout']);
 
     Route::group(['middleware'=>['auth:sanctum']],function() {
-        Route::get('/logout', ['App\Http\Controllers\Auth\AuthController', 'logout']);
+        Route::post('/verify-pin', ['App\Http\Controllers\Auth\AuthController', 'verifyPin']);
         Route::post('/single-transfer', ['App\Http\Controllers\TransferController', 'singleTransfer']);
     });
 });
