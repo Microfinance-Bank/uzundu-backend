@@ -31,12 +31,12 @@ class AuthController extends Controller
     public function verifyPin(Request $request, Utils $utils)
     {
         $request->validate([
-            "pin" => "required|string|min:6|max:6"
+//            "pin" => "required|string|digits:4"
         ]);
         if(!Hash::check($request->get("pin"), auth('sanctum')->user()->pin))
             return $utils->message("error", "Invalid Pin", 400);
 
-        return $utils->message("error", "Pin Verified", 200);
+        return $utils->message("success", "Pin Verified", 200);
 
     }
     public function createPin(Request $request, $username, Utils $utils)
@@ -122,7 +122,7 @@ class AuthController extends Controller
             $response = $client->request('GET', 'https://staging.mybankone.com/BankOneWebAPI/api/Customer/GetByCustomerPhoneNumber/2?' . $data);
             $user = json_decode($response->getBody()->getContents());
             if (isset($user->Message) && !empty($user))
-                return $utils->message("success", $user->Message, 404);
+                return $utils->message("error", $user->Message, 400);
             try {
 
               return  DB::transaction(function () use ($userRequest, $user, $execs, $utils) {
@@ -333,6 +333,7 @@ class AuthController extends Controller
         $success['account_number'] =  $user->last_name;
         $success['account_type'] =  $user->last_name;
         $success['username'] =  $authUser->username;
+        $success['balance'] =  0.00;
         $success['id'] =  $authUser->id;
         return $utils->message("success", $success, 200);
     }

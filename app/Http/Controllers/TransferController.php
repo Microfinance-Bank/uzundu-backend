@@ -6,14 +6,51 @@ use App\Models\Account;
 use App\Models\Transfer;
 use App\Models\User;
 use App\Utils\Utils;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 class TransferController extends Controller
 {
+
+    public function bulkTransfer(Request $request, Utils $utils)
+    {
+        Log::info("########## Validating File #########");
+
+        $request->validate([
+            "file" => 'required|file|mimes:csv,xlsx'
+        ],[
+            "fileName.mimes" => "File should be a csv or excel file"
+        ]);
+        Log::info("########## File Validated #########");
+
+        if($request->has("file")){
+            $accounts=[];
+            $allAccounts = Excel::toArray(new \stdClass(), $request->file("file"));
+            foreach ($allAccounts as $accounts){
+                foreach ($accounts as $account){
+                    echo $account[0] . " " . $account[1] . " " . $account[2]. "<br />";
+                    try {
+                        Log::info("########## Validating Customer #########");
+
+                        $user = $utils->validateUser($account[2]);
+                        if (isset($user->Message) && !empty($user)){
+                            Log::info("########## Customer Not Validated Successfully. #########");
+                            return $utils->message("success", $user->Message, 404);
+                        }
+
+                    } catch (\GuzzleHttp\Exception\ClientException $e) {
+                        Log::error("########## ". $e->getMessage() ." #########");
+                        return $utils->message("error", $e->getMessage(), 400);
+                    }
+                    }
+            }
+        }
+    }
     /**
      * Display a listing of the resource.
      */
@@ -25,12 +62,10 @@ class TransferController extends Controller
             "amount" => "required|int",
             "narration" => "required|string",
         ]);
-
+        $request_narration = $request->get("narration");
         Log::info("########## Inputs Validated #########");
 
         Log::info("########## User Data Inputs #########", $request->all());
-
-
         $sink_account = $request->get("account_number");
         $source_account = Account::where("user_id",  auth('sanctum')->user()->id)->value("account_number");
         $amount = $request->get("amount");
@@ -38,25 +73,13 @@ class TransferController extends Controller
             try {
                 Log::info("########## Validating Customer #########");
 
-                // execute the request
-                $client = new \GuzzleHttp\Client();
-                $response = $client->request('POST', 'https://staging.mybankone.com/thirdpartyapiservice/apiservice/Account/AccountEnquiry', [
-                    'form_params' => [
-                        "AccountNo" => $sink_account,
-                        "AuthenticationCode" => env("BANK_ONE_AUTH_TOKEN")
-                    ],
-                    'headers' => [
-                        'Accept'     => 'application/json',
-                    ]
-                ]);
-                $user = json_decode($response->getBody()->getContents());
-
+                $user = $utils->validateIntraBankUser($source_account);
                 if (isset($user->Message) && !empty($user)){
                     Log::info("########## Customer Not Validated Successfully. #########");
-                    return $utils->message("success", $user->Message, 404);
+                    return $utils->message("error", $user->Message, 400);
                 }
 
-                Log::info("########## Customer Validation Response. #########", json_decode($response->getBody(), true));
+                Log::info("########## Customer Validation Response. #########", json_decode(json_encode($user), true));
 
                 if($user->AvailableBalance < $amount){
                     Log::info("########## Available Balance is less than amount requested. #########");
@@ -64,7 +87,7 @@ class TransferController extends Controller
                 }
 
                 try {
-                    return  DB::transaction(function () use ($bankCode, $user, $amount, $utils, $sink_account, $source_account)  {
+                    return  DB::transaction(function () use ($bankCode, $user, $amount, $utils, $sink_account, $source_account, $request_narration)  {
                         try {
 
                             $milliseconds = substr(floor(microtime(true) * 1000), 5);
@@ -72,7 +95,7 @@ class TransferController extends Controller
                             $client = new \GuzzleHttp\Client();
                             $narrationSourceAccount = "***" . substr($source_account, 3);
                             $narrationSinkAccount = "***" . substr($sink_account, 3);
-                            $narration = "Trf from " . $narrationSourceAccount. " to ". $narrationSinkAccount;
+                            $narration = ($request_narration) ? $request_narration : "Trf from " . $narrationSourceAccount. " to ". $narrationSinkAccount;
 
                             if(Transfer::where("transaction_id", $tx_ref)->exists())
                                 return $utils->message("error", "Network Error. Please Try Again.", 400);
@@ -93,7 +116,7 @@ class TransferController extends Controller
                             $transaction->sink_account_name = $user->Name;
                             $transaction->sink_account_number = $sink_account;
                             $transaction->source_account_provider_name = Account::where("user_id",  auth('sanctum')->user()->id)->value("account_name");
-                            $transaction->sink_account_provider_code = $bankCode;
+                            $transaction->sink_account_provider_code = $bankCode ?? 892;
                             $transaction->source_account_provider_code = "090453";
                             $transaction->status = "Pending";
                             $transaction->transaction_id = $tx_ref;
@@ -143,22 +166,22 @@ class TransferController extends Controller
 
                             }else{
                                 Log::error("########## Response Not Saved #########");
-                                return $utils->message("error", $response, 400);
+                                return $utils->message("error",  $response, 400);
 
                             }
 
                         } catch (\GuzzleHttp\Exception\ClientException $e) {
-                            Log::error("########## ". $e->getMessage() ." #########");
-                            return $utils->message("error", $e->getMessage() , 400);
+                            Log::error("########## Error : ". $e->getMessage() ." #########");
+                            return $utils->message("error",  "Network Error. Please Try Again", 400);
                         }
                     });
                 } catch (\Throwable $e) {
-                    Log::error("########## ". $e->getMessage() ." #########");
-                    return $utils->message("error",$e->getMessage() , 404);
+                    Log::error("########## Error : ". $e->getMessage() ." #########");
+                    return $utils->message("error", "Network Error. Please Try Again", 400);
                 }
             } catch (\GuzzleHttp\Exception\ClientException $e) {
-                Log::error("########## ". $e->getMessage() ." #########");
-                return $utils->message("error", $e->getMessage(), 400);
+                Log::error("########## Error : ". $e->getMessage() ." #########");
+                return $utils->message("error",  "Network Error. Please Try Again", 400);
             }
 
     }
