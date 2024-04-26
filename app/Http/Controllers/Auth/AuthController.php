@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Enums\TokenAbility;
 use App\Execs\Execs;
 use App\Http\Resources\Customer;
 use App\Mail\PasswordCodeEmail;
@@ -12,6 +13,7 @@ use App\Models\User;
 use App\Utils\CurlGet;
 use App\Utils\CurlPost;
 use App\Utils\Utils;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -328,7 +330,11 @@ class AuthController extends Controller
 
         $user = Account::where("user_id", Auth::user()->id)->firstOrFail();
         $authUser = Auth::user();
-        $success['token'] =  $authUser->createToken('MyAuthApp')->plainTextToken;
+
+        $token = $authUser->createToken('access_token', [TokenAbility::ACCESS_API->value], \Carbon\Carbon::now()->addMinutes(15));
+        $rtoken = $authUser->createToken('refresh_token', [TokenAbility::ISSUE_ACCESS_TOKEN->value],\Carbon\Carbon::now()->addDays(7));
+        $success['token']  = $token->plainTextToken ;
+        $success['refreshToken']  = $rtoken->plainTextToken;
         $success['account_name'] =   $user->account_name;
         $success['account_number'] =  $user->last_name;
         $success['account_type'] =  $user->last_name;
@@ -337,9 +343,26 @@ class AuthController extends Controller
         $success['id'] =  $authUser->id;
         return $utils->message("success", $success, 200);
     }
-    public function logout(Request $request): JsonResponse
+    public function logout(Request $request, Utils $utils): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json(['message' => 'User successfully signed out']);
+        try {
+
+            if ($request->user()->currentAccessToken()->delete())
+                return response()->json(['message' => 'User successfully signed out']);
+            else
+                return  $utils->message("error", "Network Error. Try Again", 400);
+
+        }catch (\Exception $e){
+            return  $utils->message("error", $e->getMessage(), 400);
+
+        }
+    }
+
+    public function refreshToken(Request $request, Utils $utils): JsonResponse
+    {
+        $accessToken = $request->user()->createToken('access_token', [TokenAbility::ACCESS_API->value], Carbon::now()->addMinutes(15));
+
+        return $utils->message("success", ['token' => $accessToken->plainTextToken], 200);
+
     }
 }

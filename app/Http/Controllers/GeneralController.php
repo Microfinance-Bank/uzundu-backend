@@ -33,11 +33,12 @@ class GeneralController extends Controller
             Log::info("error ", $data);
         }
     }
-    public function getBank(Request $request, Utils $utils): JsonResponse
+    public function getBank(Request $request, Utils $utils)
     {
         try {
-            $banks = Bank::where("code", $request->get("bank_code"))->get();
-            return $utils->message("success", $banks  , 200);
+            $banks = Banks::all();
+
+            return $utils->message("success", BankResource::collection($banks)  , 200);
 
         }catch (\Throwable $e) {
             // Do something with your exception
@@ -98,7 +99,7 @@ class GeneralController extends Controller
                     'accept' => 'application/json',
                 ],
             ]);
-            return $banks = $response->getBody();
+             $banks = $response->getBody();
             return $utils->message("success", BankResource::collection(json_decode(json_encode($banks["data"])))  , 200);
 
         }catch (\Throwable $e) {
